@@ -34,11 +34,8 @@ flutter run --dart-define-from-file=secrets.json   # YouTube
 
 1. **API key.** In Google Cloud Console: create a project, enable **YouTube Data API v3**, create an API key,
    and restrict it to that API. Copy `secrets.example.json` to `secrets.json` (git-ignored) and paste the key.
-2. **Internet permission.** The generated `android/app/src/main/AndroidManifest.xml` has no `INTERNET`
-   permission in release builds. Add this line just above `<application`:
-   ```xml
-   <uses-permission android:name="android.permission.INTERNET"/>
-   ```
+2. **Internet permission.** Already declared in `android/app/src/main/AndroidManifest.xml`, so release
+   APKs can reach YouTube. (Flutter only adds it to debug/profile builds by default.)
 3. **Quota.** The default quota is about **100 searches per day**. Search therefore runs only when you press
    the keyboard's search key, and results are cached while the app is open.
 

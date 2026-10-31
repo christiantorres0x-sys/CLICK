@@ -40,14 +40,20 @@ class TrackTile extends ConsumerWidget {
         : [track.artistName, if (track.durationMs != null) formatDuration(track.duration!)].join(' · ');
 
     return ListTile(
-      enabled: !unavailable,
+      // Stays tappable when unavailable: tapping retries, since a failure can be
+      // temporary (network, YouTube hiccup). It is only dimmed.
       onTap: onTap,
       leading: Artwork(track: track, size: 48, radius: 8),
       title: Text(
         track.title,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: TextStyle(color: isCurrent ? ClickColors.accent : null, fontWeight: FontWeight.w600),
+        style: TextStyle(
+          color: isCurrent
+              ? ClickColors.accent
+              : (unavailable ? ClickColors.textSecondary : null),
+          fontWeight: FontWeight.w600,
+        ),
       ),
       subtitle: Text(
         subtitle,

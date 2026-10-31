@@ -63,7 +63,7 @@ class YoutubeIframePlayer extends ChangeNotifier implements ExternalPlayer {
 
   void _onValue(YoutubePlayerValue value) {
     if (value.hasError) {
-      _emit(const ExternalPlayerError('YouTube could not play this video (it may not allow embedding).'));
+      _emit(ExternalPlayerError('YouTube could not play this video (${value.error}). Tap it to try again.'));
       return;
     }
     switch (value.playerState) {

@@ -154,6 +154,8 @@ class PlaybackController extends Notifier<PlaybackState> {
       isLoading: true,
       isPlaying: false,
       clearError: true,
+      // A retry gets a fresh chance: forget an earlier (possibly temporary) failure.
+      unavailableKeys: {...state.unavailableKeys}..remove(track.key),
     );
 
     final PlayableSource source;

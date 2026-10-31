@@ -91,6 +91,21 @@ void main() {
     expect(state().unavailableKeys, contains(tracks.first.key));
   });
 
+  test('tapping a failed track again retries it and clears the unavailable flag', () async {
+    await controller().playTracks(tracks);
+    player.emit(const ExternalPlayerError('boom'));
+    await pumpEventQueue();
+    expect(state().unavailableKeys, contains(tracks.first.key));
+
+    await controller().playTracks(tracks); // the user taps the row again
+    expect(state().unavailableKeys, isNot(contains(tracks.first.key)));
+    expect(state().errorMessage, isNull);
+
+    player.emit(const ExternalStateChanged(ExternalPlayerState.playing));
+    await pumpEventQueue();
+    expect(state().isPlaying, isTrue);
+  });
+
   test('pressing play after an error reloads the track', () async {
     await controller().playTracks(tracks);
     player.emit(const ExternalPlayerError('boom'));
