@@ -34,7 +34,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       SearchStatus.idle => EmptyView(
           icon: Icons.search_rounded,
           title: 'Search the catalog',
-          message: 'Find tracks by title, artist or album in ${provider.name}.',
+          message: provider.searchIsMetered
+              ? 'Type a song or artist, then press the search key. Searches are limited, so they run only when you submit.'
+              : 'Find tracks by title, artist or album in ${provider.name}.',
         ),
       SearchStatus.loading => const LoadingView(label: 'Searching'),
       SearchStatus.error => ErrorView(

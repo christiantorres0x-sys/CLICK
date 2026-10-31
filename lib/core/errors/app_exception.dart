@@ -26,6 +26,12 @@ class ProviderUnavailableException extends AppException {
   const ProviderUnavailableException([super.userMessage = 'This track is no longer available from the provider.']);
 }
 
+/// The provider rejected CLICK's credentials (missing/invalid/restricted API key).
+class ProviderConfigException extends AppException {
+  const ProviderConfigException(
+      [super.userMessage = 'The music provider rejected CLICK\'s API key. Check the key and its restrictions.']);
+}
+
 class ValidationException extends AppException {
   const ValidationException(super.userMessage);
 }

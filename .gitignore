@@ -18,3 +18,5 @@ android/key.properties
 .env
 *.secret
 secrets.json
+
+secrets.json

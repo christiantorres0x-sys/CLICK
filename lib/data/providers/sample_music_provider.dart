@@ -54,6 +54,12 @@ class SampleMusicProvider implements MusicProvider {
   @override
   bool get supportsDiscovery => true;
 
+  @override
+  bool get searchIsMetered => false;
+
+  @override
+  String? get playbackNotice => 'Simulated playback: the built-in sample catalog has no audio.';
+
   Future<void> _simulateLatency() async {
     if (latency > Duration.zero) await Future<void>.delayed(latency);
   }

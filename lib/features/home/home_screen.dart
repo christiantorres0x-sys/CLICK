@@ -129,7 +129,8 @@ class _SampleBanner extends StatelessWidget {
           Expanded(
             child: Text(
               'You are browsing the built-in sample catalog. Tracks are fictional and playback is '
-              'simulated until a music provider is approved.',
+              'simulated. To use YouTube music, run the app with your API key '
+              '(--dart-define-from-file=secrets.json, see README).',
               style: TextStyle(color: ClickColors.textSecondary, fontSize: 13),
             ),
           ),

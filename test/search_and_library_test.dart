@@ -15,6 +15,13 @@ class _RateLimitedProvider extends SampleMusicProvider {
   Future<List<Track>> searchTracks(String query) async => throw const RateLimitException();
 }
 
+class _MeteredProvider extends SampleMusicProvider {
+  _MeteredProvider() : super(latency: Duration.zero);
+
+  @override
+  bool get searchIsMetered => true;
+}
+
 class _BrokenProvider extends SampleMusicProvider {
   _BrokenProvider() : super(latency: Duration.zero);
 
@@ -60,6 +67,31 @@ void main() {
       final s = c.read(searchProvider);
       expect(s.status, SearchStatus.error);
       expect(s.errorMessage, const RateLimitException().userMessage);
+    });
+
+    test('metered providers do not search while typing, only on submit', () async {
+      final c = makeContainer(provider: _MeteredProvider());
+      addTearDown(c.dispose);
+      c.listen(searchProvider, (_, __) {});
+      c.read(searchProvider.notifier).onQueryChanged('glass');
+      await Future<void>.delayed(SearchNotifier.debounceDuration + const Duration(milliseconds: 150));
+      expect(c.read(searchProvider).status, SearchStatus.idle);
+
+      await c.read(searchProvider.notifier).search('glass');
+      expect(c.read(searchProvider).status, SearchStatus.success);
+    });
+
+    test('non-metered providers search automatically after the debounce (FR-SEARCH-05)', () async {
+      final c = makeContainer();
+      addTearDown(c.dispose);
+      c.listen(searchProvider, (_, __) {});
+      final notifier = c.read(searchProvider.notifier);
+      notifier.onQueryChanged('g');
+      notifier.onQueryChanged('gl');
+      notifier.onQueryChanged('glass');
+      await Future<void>.delayed(SearchNotifier.debounceDuration + const Duration(milliseconds: 150));
+      expect(c.read(searchProvider).status, SearchStatus.success);
+      expect(c.read(searchProvider).query, 'glass');
     });
 
     test('unexpected errors become a generic message, not a crash', () async {

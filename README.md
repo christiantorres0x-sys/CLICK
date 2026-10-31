@@ -3,77 +3,79 @@
 Online music streaming client for Android, built with Flutter and Dart.
 Source of truth: *CLICK – Software Requirements Specification & Development Plan* v1.0 (30 Oct 2026).
 
-> **Status: v0.1–v0.4 on a built-in sample catalog.** No music provider has passed the SRS Phase 0
-> gate yet (see `docs/provider-decision-record.md`), so the app uses a clearly labeled **sample
-> catalog of fictional tracks with simulated playback (no audio)**. Everything is wired through the
-> `MusicProvider` interface so a real provider can replace it later.
+**Music source:** YouTube, music only (Data API v3 + the official YouTube embedded player). Without an API key
+the app falls back to a labeled sample catalog with simulated playback. See `docs/provider-decision-record.md`.
 
-## What works in this version
+## Status
 
 | SRS area | Status |
 | --- | --- |
 | Dark theme, Home / Search / Library / Profile navigation, mini-player (FR-UI) | Implemented |
-| Home discovery from the provider, empty/error/retry states (FR-HOME) | Implemented (sample data) |
-| Debounced search via the provider adapter, no-results/error states (FR-SEARCH) | Implemented (sample data) |
-| Play, pause, seek, next/previous, shuffle, repeat, Now Playing (FR-PLAY) | Implemented, **simulated** (no audio) |
+| Home = YouTube Music chart; search = Music category, embeddable videos only (FR-HOME, FR-SEARCH) | Implemented, **needs your API key** |
+| Play, pause, seek, next/previous, shuffle, repeat, Now Playing (FR-PLAY) | Implemented (YouTube player or simulated) |
 | Queue: view, add, remove, clear (FR-QUEUE-01..04) | Implemented |
-| Liked Songs, playlists (create/rename/delete/add/remove), persistence, history (FR-LIB) | Implemented (SQLite) |
+| Liked Songs, playlists, history, persistence (FR-LIB) | Implemented (SQLite) |
 | Settings: provider disclosure, playback defaults, clear history (FR-SET) | Implemented |
-| Background playback, notification, lock-screen, audio focus (FR-BG) | **Not implemented** (Phase 5, needs a real audio engine) |
-| Real provider, real streaming (FR-PROV, Phase 3/4) | **Not implemented** (blocked by the Phase 0 gate) |
+| Background playback, notification, lock-screen (FR-BG) | **Not possible with YouTube's embedded player** (it must stay visible); see the decision record |
 | Queue reordering (FR-QUEUE-05, *Should*) | Not implemented |
 
 ## Run it
 
-Prerequisites: Flutter stable (with Android toolchain), VS Code with the Flutter/Dart extensions.
-
-```bash
+```powershell
 cd click
-flutter create . --platforms=android --project-name click   # generates android/ without touching lib/ or pubspec.yaml
 flutter pub get
 flutter analyze
 flutter test
-flutter run                                                   # emulator or physical device
+flutter run                                   # sample catalog (no key)
+flutter run --dart-define-from-file=secrets.json   # YouTube
 ```
 
-`flutter create .` is needed once because the `android/` folder is not checked in yet. It keeps the
-existing `lib/`, `test/` and `pubspec.yaml`. Set the application ID/label and review `minSdkVersion`
-afterwards (SRS Phase 1).
+### One-time setup for YouTube
+
+1. **API key.** In Google Cloud Console: create a project, enable **YouTube Data API v3**, create an API key,
+   and restrict it to that API. Copy `secrets.example.json` to `secrets.json` (git-ignored) and paste the key.
+2. **Internet permission.** The generated `android/app/src/main/AndroidManifest.xml` has no `INTERNET`
+   permission in release builds. Add this line just above `<application`:
+   ```xml
+   <uses-permission android:name="android.permission.INTERNET"/>
+   ```
+3. **Quota.** The default quota is about **100 searches per day**. Search therefore runs only when you press
+   the keyboard's search key, and results are cached while the app is open.
 
 ### Tests
 
-* `test/domain_test.dart`, `playback_controller_test.dart`, `search_and_library_test.dart`, `widget_test.dart`
-  need nothing extra.
-* `test/sqlite_library_repository_test.dart` runs the real SQL through `sqflite_common_ffi`. On Windows
-  this may need `sqlite3.dll` on the path; run it on Linux/macOS/WSL if it cannot load SQLite.
+* No extras needed: `domain_test`, `playback_controller_test`, `external_player_controller_test`,
+  `search_and_library_test`, `youtube_music_provider_test` (mocked HTTP, no network), `widget_test`.
+* `sqlite_library_repository_test.dart` runs real SQL through `sqflite_common_ffi`.
+
+## How the YouTube playback works
+
+The YouTube player is pinned at the top of the screen while a YouTube track is loaded and the rest of the app
+sits below it (so navigation never hides or covers it). `PlaybackController` stays the only owner of queue and
+state and talks to the player through the `ExternalPlayer` interface; only
+`lib/data/providers/youtube_iframe_player.dart` and `lib/features/player/youtube_dock.dart` use the
+`youtube_player_iframe` package.
 
 ## Design decisions (not specified in the SRS)
 
-* **Sample catalog.** 12 fictional tracks by fictional artists. Labeled on Home, Settings and Now Playing.
-* **Simulated playback.** A 500 ms timer advances the position. `PlaybackController` is the only place
-  to replace with `just_audio` + `audio_service` (SRS 9.1) in Phase 4/5.
-* **Clear queue** removes upcoming tracks and keeps the current track playing (the SRS does not say).
-* **Shuffle** randomizes upcoming tracks; turning it off keeps the current order. If a track is added
-  to an empty queue it starts playing.
-* **Theme setting.** Dark is the only theme (FR-UI-01); Settings shows it read-only.
-* **Playback defaults** (shuffle / repeat) are applied when the app starts.
-* **Clear listening history** (FR-SET-03) also deletes cached track metadata that is not referenced
-  by Liked Songs or a playlist.
-* **Unavailable tracks** (FR-LIB-07) are detected when playback fails with `ProviderUnavailableException`
-  and then shown as "Unavailable from provider" for the rest of the session.
-* **State management:** Riverpod. **Storage:** `sqflite`. Packages from SRS 9.1 that the sample catalog
-  does not need yet (`just_audio`, `audio_service`, `cached_network_image`, a networking client) are
-  deliberately not added.
+* **Clear queue** removes upcoming tracks and keeps the current track playing.
+* **Shuffle** randomizes upcoming tracks; turning it off keeps the current order. Adding a track to an empty
+  queue starts it.
+* **Search on submit for YouTube** because of the quota (deviates from FR-SEARCH-05's debounce, which still
+  applies to non-metered providers).
+* **Music filter:** category 10, embeddable, public, not live, at most 15 minutes (drops mixes and albums).
+* **Theme:** dark only. **Clear listening history** also deletes unreferenced cached metadata.
+* **Unavailable tracks** (FR-LIB-07) are flagged when playback fails, for the rest of the session.
 
 ## Project layout
 
 ```
 lib/
-  app/        app widget, theme, Riverpod providers
+  app/        app widget, theme, Riverpod providers (provider selection lives here)
   core/       errors, constants, utilities
-  data/       provider adapters (sample), SQLite repository
-  domain/     entities and repository interfaces
-  features/   home, search, library, player, settings, shell
+  data/       providers (YouTube, sample), YouTube iframe player, SQLite repository
+  domain/     entities and interfaces (MusicProvider, ExternalPlayer, repositories)
+  features/   home, search, library, player (incl. YouTube dock), settings, shell
   shared/     reusable widgets
 test/
 docs/
@@ -81,6 +83,5 @@ docs/
 
 ## Security
 
-No secrets are required in this version. `.gitignore` already excludes `.env`, `secrets.json`,
-keystores and `key.properties` (FR-PROV-05, NFR-SEC). When a real provider is added, record its
-terms in `docs/provider-decision-record.md` first, and add the `INTERNET` permission to the manifest.
+`secrets.json`, `.env`, keystores and `key.properties` are git-ignored (FR-PROV-05, NFR-SEC). A key compiled
+into an APK can be extracted, so restrict it in Google Cloud Console (see the decision record).

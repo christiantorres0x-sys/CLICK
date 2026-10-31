@@ -24,7 +24,7 @@ class AppSpacing {
 }
 
 ThemeData buildClickTheme() {
-  final scheme = ColorScheme.dark(
+  const scheme = ColorScheme.dark(
     primary: ClickColors.accent,
     onPrimary: ClickColors.onAccent,
     secondary: ClickColors.accent,

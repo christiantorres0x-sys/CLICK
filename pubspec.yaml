@@ -12,6 +12,8 @@ dependencies:
   flutter_riverpod: ^2.6.1
   sqflite: ^2.3.3
   path: ^1.9.0
+  http: ^1.2.2
+  youtube_player_iframe: ^5.2.0
 
 dev_dependencies:
   flutter_test:

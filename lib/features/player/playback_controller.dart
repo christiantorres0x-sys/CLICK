@@ -8,6 +8,8 @@ import '../../app/providers.dart';
 import '../../core/errors/app_exception.dart';
 import '../../domain/entities/repeat_mode.dart';
 import '../../domain/entities/track.dart';
+import '../../domain/repositories/external_player.dart';
+import '../../domain/repositories/music_provider.dart';
 import '../library/library_controller.dart';
 import '../settings/settings_controller.dart';
 
@@ -76,22 +78,30 @@ class PlaybackState {
 }
 
 /// The single playback controller (SRS 9.2): widgets never create their own
-/// player. In this version playback is simulated by a timer, because the
-/// built-in sample catalog has no audio; a real engine (just_audio +
-/// audio_service, SRS 9.1) replaces [_startTimer]/[tick] in Phase 4/5.
+/// player. A track plays either on a simulated clock (the sample catalog has no
+/// audio) or through an [ExternalPlayer] (the official YouTube player), chosen
+/// by the [PlayableSource] the provider returns.
 class PlaybackController extends Notifier<PlaybackState> {
   static const tickInterval = Duration(milliseconds: 500);
   static const restartThreshold = Duration(seconds: 3);
+  static const externalLoadTimeout = Duration(seconds: 20);
 
   Timer? _timer;
+  Timer? _loadTimeout;
   int _token = 0;
   bool _disposed = false;
+
+  ExternalPlayer? _external;
+  StreamSubscription<ExternalPlayerEvent>? _externalSub;
 
   @override
   PlaybackState build() {
     ref.onDispose(() {
       _disposed = true;
       _stopTimer(); // FR-PLAY-08: release resources on dispose
+      _loadTimeout?.cancel();
+      _externalSub?.cancel();
+      _safe(_external?.pause());
     });
     Future.microtask(_applySavedDefaults);
     return const PlaybackState();
@@ -105,6 +115,11 @@ class PlaybackController extends Notifier<PlaybackState> {
     } catch (_) {
       // Keep built-in defaults.
     }
+  }
+
+  /// Fire-and-forget a player call without letting an error escape.
+  void _safe(Future<void>? call) {
+    if (call != null) unawaited(call.catchError((Object _) {}));
   }
 
   // --- starting playback ---------------------------------------------------
@@ -132,6 +147,7 @@ class PlaybackController extends Notifier<PlaybackState> {
     final token = ++_token;
     final track = state.queue[index];
     _stopTimer();
+    _loadTimeout?.cancel();
     state = state.copyWith(
       currentIndex: index,
       position: Duration.zero,
@@ -139,32 +155,97 @@ class PlaybackController extends Notifier<PlaybackState> {
       isPlaying: false,
       clearError: true,
     );
+
+    final PlayableSource source;
     try {
-      // v1 only has the simulated source; the URI is ignored (see class docs).
-      await ref.read(musicProviderProvider).resolvePlayableSource(track.providerId);
+      source = await ref.read(musicProviderProvider).resolvePlayableSource(track.providerId);
     } on AppException catch (e) {
       if (_disposed || token != _token) return;
-      state = state.copyWith(
-        isLoading: false,
-        isPlaying: false,
-        errorMessage: e.userMessage,
-        unavailableKeys:
-            e is ProviderUnavailableException ? {...state.unavailableKeys, track.key} : null,
-      );
+      _fail(track, e.userMessage, unavailable: e is ProviderUnavailableException);
       return;
     } catch (_) {
       if (_disposed || token != _token) return;
-      state = state.copyWith(
-        isLoading: false,
-        isPlaying: false,
-        errorMessage: 'Playback failed. Press play to try again.',
-      );
+      _fail(track, 'Playback failed. Press play to try again.');
       return;
     }
     if (_disposed || token != _token) return;
-    state = state.copyWith(isLoading: false, isPlaying: true);
-    _startTimer();
+
+    final videoId = source.youtubeVideoId;
+    if (videoId == null) {
+      // Simulated playback (sample catalog).
+      _detachExternal();
+      state = state.copyWith(isLoading: false, isPlaying: true);
+      _startTimer();
+    } else {
+      try {
+        final player = _attachExternal();
+        await player.load(videoId);
+      } catch (_) {
+        if (_disposed || token != _token) return;
+        _fail(track, 'Could not start the YouTube player. Press play to try again.');
+        return;
+      }
+      if (_disposed || token != _token) return;
+      // isLoading stays true until the player reports "playing".
+      _loadTimeout = Timer(externalLoadTimeout, () {
+        if (_disposed || token != _token || !state.isLoading) return;
+        _fail(track, 'Playback did not start. Check your connection and press play to retry.');
+      });
+    }
     unawaited(ref.read(libraryProvider.notifier).recordPlay(track));
+  }
+
+  void _fail(Track track, String message, {bool unavailable = false}) {
+    _stopTimer();
+    _loadTimeout?.cancel();
+    state = state.copyWith(
+      isLoading: false,
+      isPlaying: false,
+      errorMessage: message,
+      unavailableKeys: unavailable ? {...state.unavailableKeys, track.key} : null,
+    );
+  }
+
+  // --- external player -----------------------------------------------------
+
+  ExternalPlayer _attachExternal() {
+    final player = ref.read(externalPlayerProvider);
+    if (!identical(player, _external)) {
+      _externalSub?.cancel();
+      _external = player;
+      _externalSub = player.events.listen(_onExternalEvent);
+    }
+    return player;
+  }
+
+  void _detachExternal() {
+    _safe(_external?.pause());
+    _externalSub?.cancel();
+    _externalSub = null;
+    _external = null;
+  }
+
+  void _onExternalEvent(ExternalPlayerEvent event) {
+    final track = state.current;
+    if (_disposed || _external == null || track == null) return;
+    switch (event) {
+      case ExternalStateChanged(:final playerState):
+        switch (playerState) {
+          case ExternalPlayerState.playing:
+            _loadTimeout?.cancel();
+            state = state.copyWith(isLoading: false, isPlaying: true, clearError: true);
+          case ExternalPlayerState.paused:
+            if (!state.isLoading) state = state.copyWith(isPlaying: false);
+          case ExternalPlayerState.buffering:
+            break; // the spinner is only for the initial load
+          case ExternalPlayerState.ended:
+            if (!state.isLoading) unawaited(_onTrackCompleted());
+        }
+      case ExternalPositionChanged(:final position):
+        if (!state.isLoading && state.isPlaying) state = state.copyWith(position: position);
+      case ExternalPlayerError(:final message, :final unavailable):
+        _fail(track, message, unavailable: unavailable);
+    }
   }
 
   // --- transport controls --------------------------------------------------
@@ -175,12 +256,18 @@ class PlaybackController extends Notifier<PlaybackState> {
     if (index == null || state.isLoading) return;
     if (state.isPlaying) {
       _stopTimer();
+      _safe(_external?.pause());
       state = state.copyWith(isPlaying: false);
     } else if (state.errorMessage != null) {
       unawaited(_play(index));
     } else {
       state = state.copyWith(isPlaying: true);
-      _startTimer();
+      final external = _external;
+      if (external != null) {
+        _safe(external.play());
+      } else {
+        _startTimer();
+      }
     }
   }
 
@@ -190,6 +277,7 @@ class PlaybackController extends Notifier<PlaybackState> {
     final total = state.duration;
     final clamped = to < Duration.zero ? Duration.zero : (to > total ? total : to);
     state = state.copyWith(position: clamped);
+    _safe(_external?.seekTo(clamped));
   }
 
   /// FR-PLAY-04. On the last track with repeat off, this does nothing.
@@ -282,10 +370,11 @@ class PlaybackController extends Notifier<PlaybackState> {
     _timer = null;
   }
 
-  /// Advances the simulated position. Public so tests can drive time.
+  /// Advances the simulated position (no-op when an external player is in
+  /// charge). Public so tests can drive time.
   @visibleForTesting
   void tick(Duration elapsed) {
-    if (!state.isPlaying || state.isLoading) return;
+    if (_external != null || !state.isPlaying || state.isLoading) return;
     final nextPosition = state.position + elapsed;
     final total = state.duration;
     if (total > Duration.zero && nextPosition >= total) {
@@ -300,6 +389,11 @@ class PlaybackController extends Notifier<PlaybackState> {
     if (index == null) return;
     if (state.repeat == RepeatMode.one) {
       state = state.copyWith(position: Duration.zero);
+      final external = _external;
+      if (external != null) {
+        _safe(external.seekTo(Duration.zero));
+        _safe(external.play());
+      }
       return;
     }
     final target = _nextIndex(index);

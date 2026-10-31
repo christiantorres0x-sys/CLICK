@@ -1,6 +1,6 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart' hide RepeatMode;
+import 'dart:math' as math;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
@@ -40,7 +40,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     final s = ref.watch(playbackProvider);
     final controller = ref.read(playbackProvider.notifier);
     final track = s.current;
-    final isSample = ref.watch(musicProviderProvider).isSample;
+    final playbackNotice = ref.watch(musicProviderProvider).playbackNotice;
 
     if (track == null) {
       return Scaffold(
@@ -56,7 +56,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     final liked = ref.watch(libraryProvider.select((l) => l.likedKeys.contains(track.key)));
     final totalMs = s.duration.inMilliseconds;
     final maxMs = totalMs > 0 ? totalMs.toDouble() : 1.0;
-    final positionMs = min(max(_dragMs ?? s.position.inMilliseconds.toDouble(), 0.0), maxMs);
+    final positionMs = math.min(math.max(_dragMs ?? s.position.inMilliseconds.toDouble(), 0.0), maxMs);
 
     return Scaffold(
       appBar: AppBar(
@@ -219,12 +219,12 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                   ),
                 ],
               ),
-              if (isSample) ...[
+              if (playbackNotice != null) ...[
                 const SizedBox(height: AppSpacing.lg),
-                const Text(
-                  'Simulated playback: the built-in sample catalog has no audio.',
+                Text(
+                  playbackNotice,
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: ClickColors.textSecondary, fontSize: 13),
+                  style: const TextStyle(color: ClickColors.textSecondary, fontSize: 13),
                 ),
               ],
             ],

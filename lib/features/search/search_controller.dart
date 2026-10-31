@@ -50,6 +50,8 @@ class SearchNotifier extends Notifier<SearchState> {
       state = const SearchState();
       return;
     }
+    // Metered providers (YouTube: ~100 searches/day) search only on submit.
+    if (ref.read(musicProviderProvider).searchIsMetered) return;
     _debounce = Timer(debounceDuration, () => search(query));
   }
 
