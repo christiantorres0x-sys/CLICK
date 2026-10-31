@@ -1,0 +1,315 @@
+import 'dart:async';
+import 'dart:math';
+
+import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../app/providers.dart';
+import '../../core/errors/app_exception.dart';
+import '../../domain/entities/repeat_mode.dart';
+import '../../domain/entities/track.dart';
+import '../library/library_controller.dart';
+import '../settings/settings_controller.dart';
+
+class PlaybackState {
+  const PlaybackState({
+    this.queue = const [],
+    this.currentIndex,
+    this.isPlaying = false,
+    this.isLoading = false,
+    this.position = Duration.zero,
+    this.shuffle = false,
+    this.repeat = RepeatMode.off,
+    this.errorMessage,
+    this.unavailableKeys = const {},
+  });
+
+  final List<Track> queue;
+  final int? currentIndex;
+  final bool isPlaying;
+  final bool isLoading;
+  final Duration position;
+  final bool shuffle;
+  final RepeatMode repeat;
+  final String? errorMessage;
+
+  /// Keys of tracks the provider reported as unavailable this session.
+  final Set<String> unavailableKeys;
+
+  Track? get current {
+    final i = currentIndex;
+    if (i == null || i < 0 || i >= queue.length) return null;
+    return queue[i];
+  }
+
+  Duration get duration => current?.duration ?? Duration.zero;
+
+  List<Track> get upNext {
+    final i = currentIndex;
+    if (i == null || i + 1 >= queue.length) return const [];
+    return queue.sublist(i + 1);
+  }
+
+  PlaybackState copyWith({
+    List<Track>? queue,
+    int? currentIndex,
+    bool? isPlaying,
+    bool? isLoading,
+    Duration? position,
+    bool? shuffle,
+    RepeatMode? repeat,
+    String? errorMessage,
+    bool clearError = false,
+    Set<String>? unavailableKeys,
+  }) =>
+      PlaybackState(
+        queue: queue ?? this.queue,
+        currentIndex: currentIndex ?? this.currentIndex,
+        isPlaying: isPlaying ?? this.isPlaying,
+        isLoading: isLoading ?? this.isLoading,
+        position: position ?? this.position,
+        shuffle: shuffle ?? this.shuffle,
+        repeat: repeat ?? this.repeat,
+        errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+        unavailableKeys: unavailableKeys ?? this.unavailableKeys,
+      );
+}
+
+/// The single playback controller (SRS 9.2): widgets never create their own
+/// player. In this version playback is simulated by a timer, because the
+/// built-in sample catalog has no audio; a real engine (just_audio +
+/// audio_service, SRS 9.1) replaces [_startTimer]/[tick] in Phase 4/5.
+class PlaybackController extends Notifier<PlaybackState> {
+  static const tickInterval = Duration(milliseconds: 500);
+  static const restartThreshold = Duration(seconds: 3);
+
+  Timer? _timer;
+  int _token = 0;
+  bool _disposed = false;
+
+  @override
+  PlaybackState build() {
+    ref.onDispose(() {
+      _disposed = true;
+      _stopTimer(); // FR-PLAY-08: release resources on dispose
+    });
+    Future.microtask(_applySavedDefaults);
+    return const PlaybackState();
+  }
+
+  Future<void> _applySavedDefaults() async {
+    try {
+      final settings = await loadAppSettings(ref.read(settingsStoreProvider));
+      if (_disposed) return;
+      state = state.copyWith(shuffle: settings.shuffleDefault, repeat: settings.repeatMode);
+    } catch (_) {
+      // Keep built-in defaults.
+    }
+  }
+
+  // --- starting playback ---------------------------------------------------
+
+  /// Replaces the queue with [tracks] and starts at [startIndex] (FR-HOME-02,
+  /// FR-SEARCH-04). With shuffle on, the chosen track plays first and the rest
+  /// follow in random order.
+  Future<void> playTracks(List<Track> tracks, {int startIndex = 0}) async {
+    if (tracks.isEmpty) return;
+    final start = min(max(startIndex, 0), tracks.length - 1);
+    var queue = List<Track>.of(tracks);
+    var index = start;
+    if (state.shuffle) {
+      final others = List<Track>.of(tracks)..removeAt(start);
+      others.shuffle(ref.read(randomProvider));
+      queue = [tracks[start], ...others];
+      index = 0;
+    }
+    state = state.copyWith(queue: queue, clearError: true);
+    await _play(index);
+  }
+
+  Future<void> _play(int index) async {
+    if (index < 0 || index >= state.queue.length) return;
+    final token = ++_token;
+    final track = state.queue[index];
+    _stopTimer();
+    state = state.copyWith(
+      currentIndex: index,
+      position: Duration.zero,
+      isLoading: true,
+      isPlaying: false,
+      clearError: true,
+    );
+    try {
+      // v1 only has the simulated source; the URI is ignored (see class docs).
+      await ref.read(musicProviderProvider).resolvePlayableSource(track.providerId);
+    } on AppException catch (e) {
+      if (_disposed || token != _token) return;
+      state = state.copyWith(
+        isLoading: false,
+        isPlaying: false,
+        errorMessage: e.userMessage,
+        unavailableKeys:
+            e is ProviderUnavailableException ? {...state.unavailableKeys, track.key} : null,
+      );
+      return;
+    } catch (_) {
+      if (_disposed || token != _token) return;
+      state = state.copyWith(
+        isLoading: false,
+        isPlaying: false,
+        errorMessage: 'Playback failed. Press play to try again.',
+      );
+      return;
+    }
+    if (_disposed || token != _token) return;
+    state = state.copyWith(isLoading: false, isPlaying: true);
+    _startTimer();
+    unawaited(ref.read(libraryProvider.notifier).recordPlay(track));
+  }
+
+  // --- transport controls --------------------------------------------------
+
+  /// FR-PLAY-01. After a failure, pressing play retries the current track.
+  void togglePlayPause() {
+    final index = state.currentIndex;
+    if (index == null || state.isLoading) return;
+    if (state.isPlaying) {
+      _stopTimer();
+      state = state.copyWith(isPlaying: false);
+    } else if (state.errorMessage != null) {
+      unawaited(_play(index));
+    } else {
+      state = state.copyWith(isPlaying: true);
+      _startTimer();
+    }
+  }
+
+  /// FR-PLAY-03.
+  void seek(Duration to) {
+    if (state.current == null) return;
+    final total = state.duration;
+    final clamped = to < Duration.zero ? Duration.zero : (to > total ? total : to);
+    state = state.copyWith(position: clamped);
+  }
+
+  /// FR-PLAY-04. On the last track with repeat off, this does nothing.
+  Future<void> next() async {
+    final index = state.currentIndex;
+    if (index == null) return;
+    final target = _nextIndex(index);
+    if (target != null) await _play(target);
+  }
+
+  /// FR-PLAY-04. Restarts the track if more than 3 seconds in.
+  Future<void> previous() async {
+    final index = state.currentIndex;
+    if (index == null) return;
+    if (state.position > restartThreshold) {
+      seek(Duration.zero);
+    } else if (index > 0) {
+      await _play(index - 1);
+    } else if (state.repeat == RepeatMode.all && state.queue.length > 1) {
+      await _play(state.queue.length - 1);
+    } else {
+      seek(Duration.zero);
+    }
+  }
+
+  /// Jumps to a queue position (used by the Queue screen).
+  Future<void> skipTo(int index) => _play(index);
+
+  int? _nextIndex(int index) {
+    if (index + 1 < state.queue.length) return index + 1;
+    if (state.repeat == RepeatMode.all && state.queue.isNotEmpty) return 0;
+    return null;
+  }
+
+  // --- shuffle / repeat ----------------------------------------------------
+
+  /// FR-PLAY-05. Turning shuffle on randomizes the upcoming tracks; turning it
+  /// off keeps the current order.
+  void toggleShuffle() {
+    final on = !state.shuffle;
+    var queue = state.queue;
+    final index = state.currentIndex;
+    if (on && index != null && index + 1 < queue.length) {
+      final upcoming = queue.sublist(index + 1)..shuffle(ref.read(randomProvider));
+      queue = [...queue.sublist(0, index + 1), ...upcoming];
+    }
+    state = state.copyWith(shuffle: on, queue: queue);
+  }
+
+  void cycleRepeat() => state = state.copyWith(repeat: state.repeat.next);
+
+  // --- queue (FR-QUEUE-01..04) ---------------------------------------------
+
+  /// Adds to the end of the queue. If nothing is loaded, the track starts playing.
+  void addToQueue(Track track) {
+    if (state.currentIndex == null || state.queue.isEmpty) {
+      unawaited(playTracks([track]));
+      return;
+    }
+    state = state.copyWith(queue: [...state.queue, track]);
+  }
+
+  /// The currently playing track cannot be removed.
+  void removeFromQueue(int index) {
+    final current = state.currentIndex;
+    if (index < 0 || index >= state.queue.length || index == current) return;
+    final queue = List<Track>.of(state.queue)..removeAt(index);
+    state = state.copyWith(
+      queue: queue,
+      currentIndex: (current != null && index < current) ? current - 1 : current,
+    );
+  }
+
+  /// Removes every upcoming track; the current track keeps playing.
+  void clearUpcoming() {
+    final current = state.currentIndex;
+    if (current == null) return;
+    state = state.copyWith(queue: state.queue.sublist(0, current + 1));
+  }
+
+  // --- simulated clock -----------------------------------------------------
+
+  void _startTimer() {
+    _timer?.cancel();
+    _timer = Timer.periodic(tickInterval, (_) => tick(tickInterval));
+  }
+
+  void _stopTimer() {
+    _timer?.cancel();
+    _timer = null;
+  }
+
+  /// Advances the simulated position. Public so tests can drive time.
+  @visibleForTesting
+  void tick(Duration elapsed) {
+    if (!state.isPlaying || state.isLoading) return;
+    final nextPosition = state.position + elapsed;
+    final total = state.duration;
+    if (total > Duration.zero && nextPosition >= total) {
+      unawaited(_onTrackCompleted());
+    } else {
+      state = state.copyWith(position: nextPosition);
+    }
+  }
+
+  Future<void> _onTrackCompleted() async {
+    final index = state.currentIndex;
+    if (index == null) return;
+    if (state.repeat == RepeatMode.one) {
+      state = state.copyWith(position: Duration.zero);
+      return;
+    }
+    final target = _nextIndex(index);
+    if (target == null) {
+      _stopTimer();
+      state = state.copyWith(isPlaying: false, position: Duration.zero);
+    } else {
+      await _play(target);
+    }
+  }
+}
+
+final playbackProvider = NotifierProvider<PlaybackController, PlaybackState>(PlaybackController.new);
