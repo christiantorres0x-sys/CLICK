@@ -74,3 +74,10 @@ link are shown (Settings, Search).
 **VERIFY before release:** Jamendo's API terms (commercial use restrictions, rate limits, attribution wording) were
 not summarized by the page I read; confirm them. Also confirm stream URLs work on your network and that
 `just_audio` plays them on your device. Not compiled or run by me.
+
+### Background playback (Phase 5)
+
+Only audio-only Jamendo tracks run in a foreground media service (`just_audio_background`). YouTube playback is
+unchanged and pauses in the background, because YouTube's developer policies forbid a background player.
+VERIFY on your phone: playback continues with the screen locked, the lock-screen controls pause/resume, and
+audio pauses for phone calls. Not compiled or run by me.

@@ -183,7 +183,16 @@ class PlaybackController extends Notifier<PlaybackState> {
       try {
         // YouTube plays in its official player; plain audio streams play in CLICK's own audio player.
         final player = _attachExternal(ref.read(videoId != null ? externalPlayerProvider : audioPlayerProvider));
-        await player.load(videoId ?? streamUri!.toString());
+        await player.load(
+          videoId ?? streamUri!.toString(),
+          info: MediaInfo(
+            id: track.key,
+            title: track.title,
+            artist: track.artistName,
+            album: track.albumTitle,
+            artworkUrl: track.artworkUrl,
+          ),
+        );
       } catch (_) {
         if (_disposed || token != _token) return;
         _fail(track, 'Could not start playback. Press play to try again.');
@@ -364,6 +373,19 @@ class PlaybackController extends Notifier<PlaybackState> {
       queue: queue,
       currentIndex: (current != null && index < current) ? current - 1 : current,
     );
+  }
+
+  /// Moves an upcoming track (FR-QUEUE-05). [from] and [to] are queue indexes
+  /// (to = final position); the current track and earlier tracks cannot move,
+  /// and nothing can be moved in front of the current track.
+  void moveInQueue(int from, int to) {
+    final current = state.currentIndex;
+    final length = state.queue.length;
+    if (current == null || from <= current || to <= current) return;
+    if (from >= length || to >= length || from == to) return;
+    final queue = List<Track>.of(state.queue);
+    queue.insert(to, queue.removeAt(from));
+    state = state.copyWith(queue: queue);
   }
 
   /// Removes every upcoming track; the current track keeps playing.

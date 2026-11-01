@@ -28,7 +28,7 @@ class YoutubeIframePlayer extends ChangeNotifier implements ExternalPlayer {
   Stream<ExternalPlayerEvent> get events => _events.stream;
 
   @override
-  Future<void> load(String sourceId) async {
+  Future<void> load(String sourceId, {MediaInfo? info}) async {
     final existing = _controller;
     if (existing != null) {
       await existing.loadVideoById(videoId: sourceId);

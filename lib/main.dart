@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 
 import 'app/app.dart';
 import 'app/providers.dart';
@@ -8,6 +9,16 @@ import 'data/local/sqlite_library_repository.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Background playback + notification/lock-screen controls for audio streams (FR-BG).
+  // If this fails the app still works; audio just stops when the app is closed.
+  try {
+    await JustAudioBackground.init(
+      androidNotificationChannelId: 'com.example.click.channel.audio',
+      androidNotificationChannelName: 'CLICK playback',
+      androidNotificationOngoing: true,
+    );
+  } catch (_) {}
 
   final SqliteLibraryRepository repository;
   try {

@@ -181,6 +181,18 @@ void main() {
       expect(state().current, tracks[1]);
     });
 
+    test('moveInQueue reorders upcoming tracks only and keeps the current track playing (FR-QUEUE-05)', () async {
+      await controller().playTracks(tracks); // current = 0
+      controller().moveInQueue(3, 1);
+      expect(state().queue.take(4).toList(), [tracks[0], tracks[3], tracks[1], tracks[2]]);
+      expect(state().currentIndex, 0);
+
+      controller().moveInQueue(0, 2); // current track cannot move
+      controller().moveInQueue(2, 0); // nothing goes in front of the current track
+      controller().moveInQueue(1, 99); // out of range
+      expect(state().queue.take(4).toList(), [tracks[0], tracks[3], tracks[1], tracks[2]]);
+    });
+
     test('skipTo jumps to a queue position', () async {
       await controller().playTracks(tracks);
       await controller().skipTo(3);

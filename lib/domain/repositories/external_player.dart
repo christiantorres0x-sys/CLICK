@@ -25,11 +25,22 @@ class ExternalPlayerError extends ExternalPlayerEvent {
   final bool unavailable;
 }
 
+/// What an engine may show in the system notification / lock screen. Engines
+/// that have no such surface (the YouTube player) ignore it.
+class MediaInfo {
+  const MediaInfo({required this.id, required this.title, required this.artist, this.album, this.artworkUrl});
+  final String id;
+  final String title;
+  final String artist;
+  final String? album;
+  final String? artworkUrl;
+}
+
 abstract class ExternalPlayer {
   Stream<ExternalPlayerEvent> get events;
 
   /// Loads [sourceId] and starts playing it.
-  Future<void> load(String sourceId);
+  Future<void> load(String sourceId, {MediaInfo? info});
   Future<void> play();
   Future<void> pause();
   Future<void> seekTo(Duration position);

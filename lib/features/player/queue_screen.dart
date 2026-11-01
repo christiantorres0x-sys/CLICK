@@ -7,8 +7,8 @@ import '../../shared/widgets/artwork.dart';
 import '../../shared/widgets/state_views.dart';
 import 'playback_controller.dart';
 
-/// View and edit the playback queue (FR-QUEUE-01..04). Reordering is a
-/// "Should" requirement (FR-QUEUE-05) and is not part of this version.
+/// View and edit the playback queue (FR-QUEUE-01..05). Drag the handle on an
+/// upcoming track to reorder it.
 class QueueScreen extends ConsumerWidget {
   const QueueScreen({super.key});
 
@@ -63,8 +63,18 @@ class QueueScreen extends ConsumerWidget {
                       style: TextStyle(color: ClickColors.textSecondary),
                     ),
                   ),
-                for (var i = 0; i < upNext.length; i++)
-                  ListTile(
+                ReorderableListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  buildDefaultDragHandles: false,
+                  itemCount: upNext.length,
+                  // ReorderableListView reports newIndex as if the dragged row were still in place.
+                  onReorder: (oldIndex, newIndex) {
+                    final target = newIndex > oldIndex ? newIndex - 1 : newIndex;
+                    controller.moveInQueue(firstUpNextIndex + oldIndex, firstUpNextIndex + target);
+                  },
+                  itemBuilder: (context, i) => ListTile(
+                    key: ValueKey('${firstUpNextIndex + i}:${upNext[i].key}'),
                     onTap: () => controller.skipTo(firstUpNextIndex + i),
                     leading: Artwork(track: upNext[i], size: 48, radius: 8),
                     title: Text(upNext[i].title, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -76,12 +86,25 @@ class QueueScreen extends ConsumerWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    trailing: IconButton(
-                      tooltip: 'Remove from queue',
-                      icon: const Icon(Icons.close_rounded),
-                      onPressed: () => controller.removeFromQueue(firstUpNextIndex + i),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: 'Remove from queue',
+                          icon: const Icon(Icons.close_rounded),
+                          onPressed: () => controller.removeFromQueue(firstUpNextIndex + i),
+                        ),
+                        ReorderableDragStartListener(
+                          index: i,
+                          child: const Padding(
+                            padding: EdgeInsets.all(8),
+                            child: Icon(Icons.drag_handle_rounded, semanticLabel: 'Drag to reorder'),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                ),
               ],
             ),
     );

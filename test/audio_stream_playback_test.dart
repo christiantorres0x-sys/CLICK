@@ -45,6 +45,15 @@ void main() {
     expect(state().isLoading, isFalse);
   });
 
+  test('track details are passed to the engine for the notification and lock screen', () async {
+    await start(StreamSourceProvider());
+    await controller().playTracks(tracks);
+    final info = audio.infos.single!;
+    expect(info.id, tracks.first.key);
+    expect(info.title, tracks.first.title);
+    expect(info.artist, tracks.first.artistName);
+  });
+
   test('pause, seek and track end are driven through the audio player', () async {
     await start(StreamSourceProvider());
     await controller().playTracks(tracks);

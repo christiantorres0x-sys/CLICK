@@ -9,6 +9,7 @@ class FakeExternalPlayer implements ExternalPlayer {
   final StreamController<ExternalPlayerEvent> _controller = StreamController<ExternalPlayerEvent>.broadcast();
   final List<String> loaded = [];
   final List<String> calls = [];
+  final List<MediaInfo?> infos = [];
 
   @override
   Stream<ExternalPlayerEvent> get events => _controller.stream;
@@ -16,7 +17,10 @@ class FakeExternalPlayer implements ExternalPlayer {
   void emit(ExternalPlayerEvent event) => _controller.add(event);
 
   @override
-  Future<void> load(String sourceId) async => loaded.add(sourceId);
+  Future<void> load(String sourceId, {MediaInfo? info}) async {
+    loaded.add(sourceId);
+    infos.add(info);
+  }
 
   @override
   Future<void> play() async => calls.add('play');

@@ -22,8 +22,8 @@ See `docs/provider-decision-record.md`.
 | Queue: view, add, remove, clear (FR-QUEUE-01..04) | Implemented |
 | Liked Songs, playlists, history, persistence (FR-LIB) | Implemented (SQLite) |
 | Settings: provider disclosure, playback defaults, clear history (FR-SET) | Implemented |
-| Background playback, notification, lock-screen (FR-BG) | **Not possible with YouTube's embedded player**; audio-only Jamendo tracks could support it later (needs `audio_service`, not added yet) |
-| Queue reordering (FR-QUEUE-05, *Should*) | Not implemented |
+| Background playback, notification, lock-screen (FR-BG) | Implemented for **audio-only (Jamendo) tracks** via `just_audio_background`. **Not possible for YouTube** (its player must stay visible). |
+| Queue reordering (FR-QUEUE-05, *Should*) | Implemented (drag the handle on Up next) |
 
 ## Run it
 
@@ -65,6 +65,20 @@ A provider that returns `PlayableSource.stream(url)` plays through `JustAudioPla
 which implements the same `ExternalPlayer` port as the YouTube player. `PlaybackController` picks the engine per
 track, pauses the previous engine when switching, and each track always resolves with the provider that owns it,
 so changing the Home/Search source never breaks the queue. The YouTube dock appears only for YouTube tracks.
+
+## Background playback (Jamendo only)
+
+Audio streams keep playing when you leave the app or lock the screen, with a media notification and lock-screen
+controls (play/pause, seek). This uses `just_audio_background` (foreground service, declared in
+`AndroidManifest.xml`; `MainActivity` extends `AudioServiceActivity`). Limits of this version:
+
+* The notification's next/previous buttons do nothing yet: CLICK keeps its own queue, so skipping is done in the app.
+* On Android 13+ the media controls still work, but the separate notification may need the notification permission
+  (Settings > Apps > CLICK > Notifications) before it is shown.
+* YouTube tracks still pause when CLICK goes to the background (YouTube's rules).
+
+After pulling this update run `flutter pub get`, then do a full rebuild (`flutter run`, not hot reload) because
+native Android files changed.
 
 ## How the YouTube playback works
 
