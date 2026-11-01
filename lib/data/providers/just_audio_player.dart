@@ -57,6 +57,12 @@ class JustAudioPlayer implements ExternalPlayer {
   Future<void> pause() => _player.pause();
 
   @override
+  Future<void> stop() async {
+    _lastState = null;
+    await _player.stop(); // also dismisses the media notification
+  }
+
+  @override
   Future<void> seekTo(Duration position) => _player.seek(position);
 
   void _onPlayerState(PlayerState state) {

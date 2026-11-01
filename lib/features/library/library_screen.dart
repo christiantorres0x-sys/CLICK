@@ -152,7 +152,7 @@ class LikedSongsScreen extends ConsumerWidget {
           ? const EmptyView(
               icon: Icons.favorite_border_rounded,
               title: 'No liked songs yet',
-              message: 'Tap the heart on any track to save it here.',
+              message: 'Tap the heart on a track to save it.',
             )
           : ListView.builder(
               itemCount: liked.length,

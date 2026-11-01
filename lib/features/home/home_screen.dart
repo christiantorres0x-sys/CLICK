@@ -53,8 +53,8 @@ class HomeScreen extends ConsumerWidget {
               height: 320,
               child: EmptyView(
                 icon: Icons.explore_off_rounded,
-                title: 'No discovery content',
-                message: 'This provider does not offer featured music. Use Search to find tracks.',
+                title: 'Nothing featured',
+                message: 'Use Search to find tracks.',
               ),
             ),
           ];
@@ -101,8 +101,6 @@ class _Header extends StatelessWidget {
               color: ClickColors.accent,
             ),
           ),
-          const SizedBox(height: AppSpacing.xs),
-          const Text('Online music streaming', style: TextStyle(color: ClickColors.textSecondary)),
         ],
       ),
     );
@@ -130,9 +128,7 @@ class _SampleBanner extends StatelessWidget {
           SizedBox(width: AppSpacing.sm + 4),
           Expanded(
             child: Text(
-              'You are browsing the built-in sample catalog. Tracks are fictional and playback is '
-              'simulated. To use YouTube music, run the app with your API key '
-              '(--dart-define-from-file=secrets.json, see README).',
+              'Using the built-in sample catalog: fictional tracks, simulated playback.',
               style: TextStyle(color: ClickColors.textSecondary, fontSize: 13),
             ),
           ),

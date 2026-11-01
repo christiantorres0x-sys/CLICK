@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme/app_theme.dart';
 import '../../core/utils/format.dart';
+import '../../domain/entities/track.dart';
 import '../../shared/widgets/artwork.dart';
 import '../../shared/widgets/state_views.dart';
 import 'playback_controller.dart';
@@ -14,11 +15,16 @@ class QueueScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final s = ref.watch(playbackProvider);
+    // Select only what this screen shows: the playback position ticks twice a second and would
+    // otherwise rebuild (and stutter) the whole list while dragging.
+    final s = ref.watch(playbackProvider.select(
+      (v) => (queue: v.queue, index: v.currentIndex, playing: v.isPlaying),
+    ));
     final controller = ref.read(playbackProvider.notifier);
-    final current = s.current;
-    final upNext = s.upNext;
-    final firstUpNextIndex = (s.currentIndex ?? -1) + 1;
+    final index = s.index;
+    final current = (index == null || index < 0 || index >= s.queue.length) ? null : s.queue[index];
+    final upNext = (index == null || index + 1 >= s.queue.length) ? const <Track>[] : s.queue.sublist(index + 1);
+    final firstUpNextIndex = (index ?? -1) + 1;
 
     return Scaffold(
       appBar: AppBar(
@@ -33,8 +39,8 @@ class QueueScreen extends ConsumerWidget {
       body: current == null
           ? const EmptyView(
               icon: Icons.queue_music_rounded,
-              title: 'The queue is empty',
-              message: 'Play a track or add one with the ⋮ menu.',
+              title: 'Queue is empty',
+              message: 'Play a track to start.',
             )
           : ListView(
               padding: const EdgeInsets.only(bottom: AppSpacing.lg),
@@ -50,7 +56,7 @@ class QueueScreen extends ConsumerWidget {
                   ),
                   subtitle: Text(current.artistName, maxLines: 1, overflow: TextOverflow.ellipsis),
                   trailing: Icon(
-                    s.isPlaying ? Icons.equalizer_rounded : Icons.pause_rounded,
+                    s.playing ? Icons.equalizer_rounded : Icons.pause_rounded,
                     color: ClickColors.accent,
                   ),
                 ),

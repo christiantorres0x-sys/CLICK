@@ -83,6 +83,21 @@ void main() {
     expect(source.isSimulated, isFalse);
   });
 
+  test('a stream URL from search results is used once, then a retry asks Jamendo again', () async {
+    var requests = 0;
+    final p = make((req) async {
+      requests++;
+      return ok([jTrack('5', audio: 'https://stream.example/5-$requests.mp3')]);
+    });
+    await p.searchTracks('x'); // request 1, remembers the URL
+    final first = await p.resolvePlayableSource('5'); // no request
+    expect(first.uri, Uri.parse('https://stream.example/5-1.mp3'));
+    expect(requests, 1);
+    final retry = await p.resolvePlayableSource('5'); // fresh request
+    expect(requests, 2);
+    expect(retry.uri, Uri.parse('https://stream.example/5-2.mp3'));
+  });
+
   test('a track with no stream URL is unavailable', () async {
     final p = make((req) async => ok([jTrack('9', audio: '')]));
     expect(p.resolvePlayableSource('9'), throwsA(isA<ProviderUnavailableException>()));

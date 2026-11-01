@@ -29,6 +29,9 @@ class FakeExternalPlayer implements ExternalPlayer {
   Future<void> pause() async => calls.add('pause');
 
   @override
+  Future<void> stop() async => calls.add('stop');
+
+  @override
   Future<void> seekTo(Duration position) async => calls.add('seek:${position.inSeconds}');
 
   Future<void> dispose() => _controller.close();

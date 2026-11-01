@@ -30,6 +30,10 @@ class JamendoMusicProvider implements MusicProvider {
   final int pageSize;
   final http.Client _client;
 
+  /// Stream URLs seen in search/featured results, kept in memory only (never stored, SRS 7.2).
+  /// Each is used once, so a retry always asks Jamendo for a fresh URL.
+  final Map<String, Uri> _streamHints = {};
+
   void close() => _client.close();
 
   @override
@@ -99,6 +103,8 @@ class JamendoMusicProvider implements MusicProvider {
   /// Looks the stream URL up at play time; it is never stored (SRS 7.2).
   @override
   Future<PlayableSource> resolvePlayableSource(String trackId) async {
+    final hint = _streamHints.remove(trackId);
+    if (hint != null) return PlayableSource.stream(hint); // skips one network round trip
     final json = await _get('tracks', {'id': trackId, 'audioformat': 'mp32'});
     final results = _mapList(json['results']);
     final audio = results.isEmpty ? null : results.first['audio'];
@@ -113,7 +119,14 @@ class JamendoMusicProvider implements MusicProvider {
     final tracks = <Track>[];
     for (final item in _mapList(json['results'])) {
       final track = trackFromJamendoJson(item);
-      if (track != null) tracks.add(track);
+      if (track == null) continue;
+      tracks.add(track);
+      final audio = item['audio'];
+      final uri = audio is String && audio.isNotEmpty ? Uri.tryParse(audio) : null;
+      if (uri != null && uri.hasScheme) {
+        if (_streamHints.length >= 200) _streamHints.remove(_streamHints.keys.first);
+        _streamHints[track.providerId] = uri;
+      }
     }
     return tracks;
   }

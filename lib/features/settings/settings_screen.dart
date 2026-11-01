@@ -6,6 +6,7 @@ import '../../app/theme/app_theme.dart';
 import '../../core/constants/app_info.dart';
 import '../../domain/entities/repeat_mode.dart';
 import '../../shared/widgets/feedback.dart';
+import '../../shared/widgets/source_switcher.dart';
 import '../library/library_controller.dart';
 import 'settings_controller.dart';
 
@@ -26,11 +27,8 @@ class SettingsScreen extends ConsumerWidget {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          title: const Text('Clear listening history?'),
-          content: const Text(
-            'This removes your recently played list and cached track metadata. '
-            'Liked songs and playlists are kept.',
-          ),
+          title: const Text('Clear history?'),
+          content: const Text('Liked songs and playlists are kept.'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -45,8 +43,39 @@ class SettingsScreen extends ConsumerWidget {
       );
       if (confirmed != true) return;
       final ok = await guardAction(messenger, library.clearHistory);
-      if (ok) showSnack(messenger, 'Listening history cleared.');
+      if (ok) showSnack(messenger, 'History cleared');
     }
+
+    // Provider disclosure (FR-SET-02) and the privacy note live one tap away instead of
+    // filling the screen.
+    Future<void> showSourceInfo() => showDialog<void>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: Text(provider.name),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(provider.attributionText),
+                  if (provider.attributionUrl != null) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    SelectableText(provider.attributionUrl!),
+                  ],
+                  const SizedBox(height: AppSpacing.md),
+                  const Text(
+                    'CLICK has no account and no analytics. Your library stays on this device. '
+                    'Searches go to the music provider.',
+                    style: TextStyle(color: ClickColors.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Close')),
+            ],
+          ),
+        );
 
     return SafeArea(
       bottom: false,
@@ -56,36 +85,21 @@ class SettingsScreen extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.sm),
             child: Text(
-              'Profile / Settings',
+              'Profile',
               style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
             ),
           ),
-          const _Section('Music provider'),
+          const _Section('Music source'),
+          const SourceSwitcher(),
           ListTile(
-            title: Text(provider.name),
-            subtitle: Text(provider.attributionText),
-          ),
-          if (provider.attributionUrl != null)
-            ListTile(
-              title: const Text('Provider link'),
-              subtitle: SelectableText(provider.attributionUrl!),
-            ),
-          const ListTile(
-            leading: Icon(Icons.info_outline_rounded),
-            title: Text(
-              'The catalog and playback availability are controlled by the external music provider.',
-              style: TextStyle(fontSize: 14),
-            ),
-          ),
-          const _Section('Appearance'),
-          const ListTile(
-            title: Text('Theme'),
-            subtitle: Text('Dark (the only theme in this version)'),
+            leading: const Icon(Icons.info_outline_rounded),
+            title: Text('About ${provider.name}'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: showSourceInfo,
           ),
           const _Section('Playback'),
           SwitchListTile(
-            title: const Text('Start with shuffle on'),
-            subtitle: const Text('Applied the next time CLICK starts.'),
+            title: const Text('Shuffle on start'),
             value: settings.shuffleDefault,
             onChanged: (value) => guardAction(
               ScaffoldMessenger.of(context),
@@ -93,7 +107,7 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           ListTile(
-            title: const Text('Start with repeat'),
+            title: const Text('Repeat on start'),
             subtitle: Padding(
               padding: const EdgeInsets.only(top: AppSpacing.sm),
               child: SegmentedButton<RepeatMode>(
@@ -110,25 +124,18 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
           ),
-          const _Section('Data and privacy'),
+          const _Section('Data'),
           ListTile(
             leading: const Icon(Icons.delete_outline_rounded),
             title: const Text('Clear listening history'),
-            subtitle: const Text('Also clears cached track metadata. Liked songs and playlists are kept.'),
             onTap: clearData,
           ),
-          const ListTile(
-            leading: Icon(Icons.lock_outline_rounded),
-            title: Text(
-              'CLICK has no account and no analytics. Your library is stored only on this device. '
-              'Search requests may be processed by the music provider under its privacy policy.',
-              style: TextStyle(fontSize: 14),
+          const SizedBox(height: AppSpacing.lg),
+          const Center(
+            child: Text(
+              '$appName · v$appVersion',
+              style: TextStyle(color: ClickColors.textSecondary, fontSize: 13),
             ),
-          ),
-          const _Section('About'),
-          const ListTile(
-            title: Text(appName),
-            subtitle: Text('Version $appVersion'),
           ),
         ],
       ),

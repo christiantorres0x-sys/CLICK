@@ -148,6 +148,23 @@ void main() {
     expect(state().queue.toSet(), tracks.toSet());
   });
 
+  test('stop closes the player: queue cleared, nothing playing, settings kept', () async {
+    controller().toggleShuffle();
+    await controller().playTracks(tracks);
+    expect(state().current, isNotNull);
+
+    controller().stop();
+    expect(state().current, isNull);
+    expect(state().queue, isEmpty);
+    expect(state().isPlaying, isFalse);
+    expect(state().isLoading, isFalse);
+    expect(state().shuffle, isTrue);
+
+    // A stopped player ignores the simulated clock.
+    controller().tick(const Duration(seconds: 10));
+    expect(state().position, Duration.zero);
+  });
+
   group('queue (FR-QUEUE-01..04)', () {
     test('addToQueue appends; on an empty queue it starts playback', () async {
       controller().addToQueue(tracks[0]);

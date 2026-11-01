@@ -40,7 +40,14 @@ class MiniPlayer extends ConsumerWidget {
                     Artwork(track: track, size: 44, radius: 8),
                     const SizedBox(width: AppSpacing.sm + 4),
                     Expanded(
-                      child: Column(
+                      // One spoken label for the title area; failures are announced (live region).
+                      child: Semantics(
+                        liveRegion: s.errorMessage != null,
+                        label: s.errorMessage == null
+                            ? 'Now playing: ${track.title} by ${track.artistName}. Open player'
+                            : '${track.title}. ${s.errorMessage}',
+                        excludeSemantics: true,
+                        child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
@@ -59,6 +66,7 @@ class MiniPlayer extends ConsumerWidget {
                             ),
                           ),
                         ],
+                      ),
                       ),
                     ),
                     if (s.isLoading)
@@ -81,14 +89,21 @@ class MiniPlayer extends ConsumerWidget {
                       icon: const Icon(Icons.skip_next_rounded),
                       onPressed: controller.next,
                     ),
+                    IconButton(
+                      tooltip: 'Close player',
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: controller.stop,
+                    ),
                   ],
                 ),
               ),
             ),
-            LinearProgressIndicator(
-              value: progress,
-              minHeight: 2,
-              backgroundColor: ClickColors.outline,
+            ExcludeSemantics(
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 2,
+                backgroundColor: ClickColors.outline,
+              ),
             ),
           ],
         ),

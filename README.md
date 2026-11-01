@@ -25,6 +25,8 @@ See `docs/provider-decision-record.md`.
 | Background playback, notification, lock-screen (FR-BG) | Implemented for **audio-only (Jamendo) tracks** via `just_audio_background`. **Not possible for YouTube** (its player must stay visible). |
 | Queue reordering (FR-QUEUE-05, *Should*) | Implemented (drag the handle on Up next) |
 
+Phase 7 checks: see `docs/phase7-quality-checklist.md`.
+
 ## Run it
 
 ```powershell
@@ -35,6 +37,9 @@ flutter test
 flutter run                                   # sample catalog (no key)
 flutter run --dart-define-from-file=secrets.json   # YouTube
 ```
+
+**Smoothness:** `flutter run` builds a *debug* app, which is much slower and janky on purpose. To judge speed, run
+`flutter run --release --dart-define-from-file=secrets.json` (or install the release APK).
 
 ### One-time setup for Jamendo (audio-only, no video)
 

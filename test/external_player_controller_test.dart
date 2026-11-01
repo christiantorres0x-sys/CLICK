@@ -28,6 +28,22 @@ void main() {
     await player.dispose();
   });
 
+  test('stop tells the engine to stop and ignores its late events', () async {
+    await controller().playTracks(tracks);
+    player.emit(const ExternalStateChanged(ExternalPlayerState.playing));
+    await pumpEventQueue();
+
+    controller().stop();
+    await pumpEventQueue();
+    expect(player.calls, contains('stop'));
+    expect(state().current, isNull);
+
+    player.emit(const ExternalStateChanged(ExternalPlayerState.playing));
+    await pumpEventQueue();
+    expect(state().isPlaying, isFalse);
+    expect(state().current, isNull);
+  });
+
   test('loads the video id and waits for the player before showing "playing"', () async {
     await controller().playTracks(tracks);
     expect(player.loaded, [tracks.first.providerId]);

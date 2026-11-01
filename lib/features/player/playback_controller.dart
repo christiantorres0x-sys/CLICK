@@ -274,6 +274,23 @@ class PlaybackController extends Notifier<PlaybackState> {
 
   // --- transport controls --------------------------------------------------
 
+  /// Closes the player: stops the sound, clears the queue and hides the mini-player
+  /// (and the YouTube square). Shuffle, repeat and the unavailable flags are kept.
+  void stop() {
+    _token++; // abandon any load still in flight
+    _stopTimer();
+    _loadTimeout?.cancel();
+    _safe(_external?.stop());
+    _externalSub?.cancel();
+    _externalSub = null;
+    _external = null;
+    state = PlaybackState(
+      shuffle: state.shuffle,
+      repeat: state.repeat,
+      unavailableKeys: state.unavailableKeys,
+    );
+  }
+
   /// FR-PLAY-01. After a failure, pressing play retries the current track.
   void togglePlayPause() {
     final index = state.currentIndex;

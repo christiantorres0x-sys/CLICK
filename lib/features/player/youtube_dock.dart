@@ -25,7 +25,15 @@ class YoutubeDockHost extends ConsumerStatefulWidget {
 
 class _YoutubeDockHostState extends ConsumerState<YoutubeDockHost> {
   /// Top-left of the dock; null until the user moves it (then the default corner is used).
-  Offset? _position;
+  /// A ValueNotifier so a drag moves only the Positioned: the player widget itself is built once
+  /// and handed in as the builder's `child`, instead of being rebuilt on every finger movement.
+  final ValueNotifier<Offset?> _position = ValueNotifier<Offset?>(null);
+
+  @override
+  void dispose() {
+    _position.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,17 +60,19 @@ class _YoutubeDockHostState extends ConsumerState<YoutubeDockHost> {
                 constraints.maxWidth - total.width - youtubeDockMargin,
                 constraints.maxHeight - total.height - media.padding.bottom - youtubeDockBottomReserve,
               );
-              final pos = _clamp(_position ?? fallback, bounds);
               return Stack(
                 children: [
-                  Positioned(
-                    left: pos.dx,
-                    top: pos.dy,
+                  ValueListenableBuilder<Offset?>(
+                    valueListenable: _position,
                     child: _Dock(
                       player: ref.watch(youtubePlayerProvider),
                       size: size,
-                      onDrag: (delta) => setState(() => _position = _clamp(pos + delta, bounds)),
+                      onDrag: (delta) => _position.value = _clamp((_position.value ?? fallback) + delta, bounds),
                     ),
+                    builder: (context, value, child) {
+                      final pos = _clamp(value ?? fallback, bounds);
+                      return Positioned(left: pos.dx, top: pos.dy, child: child!);
+                    },
                   ),
                 ],
               );
@@ -84,22 +94,25 @@ class _Dock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
+    return RepaintBoundary(
+      child: ColoredBox(
       color: Colors.black,
-      elevation: 8,
-      borderRadius: BorderRadius.circular(12),
-      clipBehavior: Clip.antiAlias,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           // The grip is its own strip above the video, so dragging never touches or covers the player.
-          GestureDetector(
+          // Listener reacts from the first pixel; a pan GestureDetector waits ~36 px of
+          // movement before it starts, which is what made dragging feel heavy.
+          Listener(
             behavior: HitTestBehavior.opaque,
-            onPanUpdate: (d) => onDrag(d.delta),
-            child: SizedBox(
-              width: size.width,
-              height: youtubeDockHandleHeight,
-              child: const Center(child: Icon(Icons.drag_handle_rounded, size: 22, color: Colors.white70)),
+            onPointerMove: (e) => onDrag(e.delta),
+            child: Semantics(
+              label: 'Video player. Drag this bar to move it.',
+              child: SizedBox(
+                width: size.width,
+                height: youtubeDockHandleHeight,
+                child: const Center(child: Icon(Icons.drag_handle_rounded, size: 22, color: Colors.white70)),
+              ),
             ),
           ),
           SizedBox(
@@ -117,6 +130,7 @@ class _Dock extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }

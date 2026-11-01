@@ -41,10 +41,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final Widget body = switch (state.status) {
       SearchStatus.idle => EmptyView(
           icon: Icons.search_rounded,
-          title: 'Search the catalog',
+          title: 'Search',
           message: provider.searchIsMetered
-              ? 'Type a song or artist, then press the search key. Searches are limited, so they run only when you submit.'
-              : 'Find tracks by title, artist or album in ${provider.name}.',
+              ? 'Type a song or artist, then press search.'
+              : 'Find songs and artists.',
         ),
       SearchStatus.loading => const LoadingView(label: 'Searching'),
       SearchStatus.error => ErrorView(
@@ -55,10 +55,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           ? EmptyView(
               icon: Icons.search_off_rounded,
               title: 'No results',
-              message: 'Nothing matched "${state.query}". Try a different title or artist.',
+              message: 'Nothing matched "${state.query}".',
             )
           : ListView.builder(
               padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+              cacheExtent: 800, // build rows a little ahead of the scroll for smoother flinging
               itemCount: state.results.length + 1,
               itemBuilder: (context, i) {
                 if (i == 0) {

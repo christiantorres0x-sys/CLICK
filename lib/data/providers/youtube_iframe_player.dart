@@ -57,6 +57,9 @@ class YoutubeIframePlayer extends ChangeNotifier implements ExternalPlayer {
   Future<void> pause() async => _controller?.pauseVideo();
 
   @override
+  Future<void> stop() async => _controller?.stopVideo();
+
+  @override
   Future<void> seekTo(Duration position) async {
     await _controller?.seekTo(seconds: position.inMilliseconds / 1000.0, allowSeekAhead: true);
   }

@@ -58,7 +58,7 @@ class PlaylistScreen extends ConsumerWidget {
         context: context,
         builder: (dialogContext) => AlertDialog(
           title: const Text('Delete playlist?'),
-          content: Text('"${playlist.name}" will be deleted. The tracks themselves are not affected.'),
+          content: Text('"${playlist.name}" will be deleted.'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -110,7 +110,7 @@ class PlaylistScreen extends ConsumerWidget {
             return const EmptyView(
               icon: Icons.library_music_outlined,
               title: 'This playlist is empty',
-              message: 'Add tracks with the ⋮ menu on any track in Home, Search or Library.',
+              message: 'Add tracks with ⋮ on any track.',
             );
           }
           return ListView(

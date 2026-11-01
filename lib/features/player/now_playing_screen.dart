@@ -51,7 +51,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
         body: const EmptyView(
           icon: Icons.music_off_rounded,
           title: 'Nothing is playing',
-          message: 'Pick a track from Home, Search or your Library.',
+          message: 'Pick a track to play.',
         ),
       );
     }
@@ -72,6 +72,14 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
         title: const Text('Now Playing'),
         centerTitle: true,
         actions: [
+          IconButton(
+            tooltip: 'Stop and close player',
+            icon: const Icon(Icons.stop_circle_outlined),
+            onPressed: () {
+              controller.stop();
+              Navigator.of(context).pop();
+            },
+          ),
           IconButton(
             tooltip: 'Queue',
             icon: const Icon(Icons.queue_music_rounded),
@@ -141,9 +149,12 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                     const Icon(Icons.error_outline_rounded, color: ClickColors.error, size: 20),
                     const SizedBox(width: AppSpacing.sm),
                     Expanded(
-                      child: Text(
-                        '${s.errorMessage} Press play to retry.',
-                        style: const TextStyle(color: ClickColors.error),
+                      child: Semantics(
+                        liveRegion: true,
+                        child: Text(
+                          '${s.errorMessage}',
+                          style: const TextStyle(color: ClickColors.error),
+                        ),
                       ),
                     ),
                   ],

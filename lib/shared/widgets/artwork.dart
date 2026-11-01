@@ -28,6 +28,9 @@ class Artwork extends StatelessWidget {
               : Image.network(
                   url,
                   fit: BoxFit.cover,
+                  // Decode at display size instead of full resolution: far less memory in long lists.
+                  cacheWidth: size == null ? null : (size! * MediaQuery.devicePixelRatioOf(context)).round(),
+                  gaplessPlayback: true,
                   errorBuilder: (context, error, stackTrace) => placeholder,
                 ),
         ),

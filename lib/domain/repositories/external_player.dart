@@ -43,5 +43,8 @@ abstract class ExternalPlayer {
   Future<void> load(String sourceId, {MediaInfo? info});
   Future<void> play();
   Future<void> pause();
+
+  /// Stops playback and releases the current item (closes the player).
+  Future<void> stop();
   Future<void> seekTo(Duration position);
 }

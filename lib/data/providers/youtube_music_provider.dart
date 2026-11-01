@@ -72,7 +72,7 @@ class YouTubeMusicProvider implements MusicProvider {
 
   @override
   String? get playbackNotice =>
-      'Playing through the YouTube player. It must stay visible, and playback pauses when CLICK is in the background.';
+      'Plays in the YouTube player and pauses when CLICK is in the background.';
 
   // --- catalog -------------------------------------------------------------
 
