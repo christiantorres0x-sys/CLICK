@@ -37,4 +37,22 @@ void main() {
     // Dispose the tree so the simulated-playback timer is cancelled.
     await tester.pumpWidget(const SizedBox());
   });
+
+  testWidgets('swiping the mini-player sideways closes it', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(overrides: testOverrides(), child: const ClickApp()),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Glass Orbit').first);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byTooltip('Next track'), findsOneWidget);
+
+    await tester.drag(find.byType(Dismissible), const Offset(-600, 0));
+    await tester.pumpAndSettle(); // playback stopped, so the tree can settle
+    expect(find.byTooltip('Next track'), findsNothing);
+
+    await tester.pumpWidget(const SizedBox());
+  });
 }

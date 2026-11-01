@@ -24,7 +24,17 @@ class MiniPlayer extends ConsumerWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(AppSpacing.sm, AppSpacing.xs, AppSpacing.sm, AppSpacing.xs),
-      child: Material(
+      // Swipe left or right to dismiss (slides away), or flick down to close. The X button still works.
+      child: Dismissible(
+        key: ValueKey('mini-player:${track.key}'),
+        direction: DismissDirection.horizontal,
+        onDismissed: (_) => controller.stop(),
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onVerticalDragEnd: (details) {
+            if ((details.primaryVelocity ?? 0) > 300) controller.stop();
+          },
+          child: Material(
         color: ClickColors.surfaceHigh,
         borderRadius: BorderRadius.circular(14),
         clipBehavior: Clip.antiAlias,
@@ -106,6 +116,8 @@ class MiniPlayer extends ConsumerWidget {
               ),
             ),
           ],
+        ),
+      ),
         ),
       ),
     );
