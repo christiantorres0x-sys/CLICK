@@ -14,6 +14,8 @@ List<Override> testOverrides({
   InMemoryLibrary? library,
   MusicProvider? provider,
   ExternalPlayer? externalPlayer,
+  ExternalPlayer? audioPlayer,
+  List<MusicProvider>? providers,
   int seed = 1,
 }) {
   final lib = library ?? InMemoryLibrary();
@@ -23,6 +25,8 @@ List<Override> testOverrides({
     musicProviderProvider.overrideWithValue(provider ?? SampleMusicProvider(latency: Duration.zero)),
     randomProvider.overrideWithValue(Random(seed)),
     if (externalPlayer != null) externalPlayerProvider.overrideWithValue(externalPlayer),
+    if (audioPlayer != null) audioPlayerProvider.overrideWithValue(audioPlayer),
+    if (providers != null) musicProvidersProvider.overrideWithValue(providers),
   ];
 }
 
@@ -30,6 +34,8 @@ ProviderContainer makeContainer({
   InMemoryLibrary? library,
   MusicProvider? provider,
   ExternalPlayer? externalPlayer,
+  ExternalPlayer? audioPlayer,
+  List<MusicProvider>? providers,
   int seed = 1,
 }) {
   return ProviderContainer(
@@ -37,6 +43,8 @@ ProviderContainer makeContainer({
       library: library,
       provider: provider,
       externalPlayer: externalPlayer,
+      audioPlayer: audioPlayer,
+      providers: providers,
       seed: seed,
     ),
   );

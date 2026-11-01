@@ -3,8 +3,14 @@
 Online music streaming client for Android, built with Flutter and Dart.
 Source of truth: *CLICK – Software Requirements Specification & Development Plan* v1.0 (30 Oct 2026).
 
-**Music source:** YouTube, music only (Data API v3 + the official YouTube embedded player). Without an API key
-the app falls back to a labeled sample catalog with simulated playback. See `docs/provider-decision-record.md`.
+**Music sources** (switch on Home / Search when both are configured):
+
+* **Jamendo (audio)**: audio-only streams that play in CLICK's own player, with no video on screen.
+* **YouTube (video)**: music only (Data API v3 + the official YouTube embedded player). YouTube's rules require
+  its player to stay visible, so it cannot be hidden.
+
+With neither key the app falls back to a labeled sample catalog with simulated playback.
+See `docs/provider-decision-record.md`.
 
 ## Status
 
@@ -16,7 +22,7 @@ the app falls back to a labeled sample catalog with simulated playback. See `doc
 | Queue: view, add, remove, clear (FR-QUEUE-01..04) | Implemented |
 | Liked Songs, playlists, history, persistence (FR-LIB) | Implemented (SQLite) |
 | Settings: provider disclosure, playback defaults, clear history (FR-SET) | Implemented |
-| Background playback, notification, lock-screen (FR-BG) | **Not possible with YouTube's embedded player** (it must stay visible); see the decision record |
+| Background playback, notification, lock-screen (FR-BG) | **Not possible with YouTube's embedded player**; audio-only Jamendo tracks could support it later (needs `audio_service`, not added yet) |
 | Queue reordering (FR-QUEUE-05, *Should*) | Not implemented |
 
 ## Run it
@@ -29,6 +35,14 @@ flutter test
 flutter run                                   # sample catalog (no key)
 flutter run --dart-define-from-file=secrets.json   # YouTube
 ```
+
+### One-time setup for Jamendo (audio-only, no video)
+
+1. Create a free app at the Jamendo developer portal (devportal.jamendo.com) and copy its **client id**.
+2. Add it to `secrets.json` as `JAMENDO_CLIENT_ID` (see `secrets.example.json`). It is passed with
+   `--dart-define-from-file` and never committed. Use only the sources you have keys for.
+3. Run `flutter pub get` (adds `just_audio`) and `flutter run --dart-define-from-file=secrets.json`.
+4. Check Jamendo's API terms for your intended use (the free client id is meant for non-commercial apps; verify).
 
 ### One-time setup for YouTube
 
@@ -45,10 +59,18 @@ flutter run --dart-define-from-file=secrets.json   # YouTube
   `search_and_library_test`, `youtube_music_provider_test` (mocked HTTP, no network), `widget_test`.
 * `sqlite_library_repository_test.dart` runs real SQL through `sqflite_common_ffi`.
 
+## How audio-only playback works
+
+A provider that returns `PlayableSource.stream(url)` plays through `JustAudioPlayer` (`lib/data/providers/just_audio_player.dart`),
+which implements the same `ExternalPlayer` port as the YouTube player. `PlaybackController` picks the engine per
+track, pauses the previous engine when switching, and each track always resolves with the provider that owns it,
+so changing the Home/Search source never breaks the queue. The YouTube dock appears only for YouTube tracks.
+
 ## How the YouTube playback works
 
-The YouTube player is pinned at the top of the screen while a YouTube track is loaded and the rest of the app
-sits below it (so navigation never hides or covers it). `PlaybackController` stays the only owner of queue and
+The YouTube player is a small floating 200x200 square (YouTube's minimum size) while a YouTube track is loaded. Drag the grip
+bar above it to move it anywhere (it stays on screen); it starts bottom-right above the mini-player and nothing is drawn over it. When Jamendo is configured it is the
+default source, so you only see video after choosing YouTube. `PlaybackController` stays the only owner of queue and
 state and talks to the player through the `ExternalPlayer` interface; only
 `lib/data/providers/youtube_iframe_player.dart` and `lib/features/player/youtube_dock.dart` use the
 `youtube_player_iframe` package.
@@ -70,7 +92,7 @@ state and talks to the player through the `ExternalPlayer` interface; only
 lib/
   app/        app widget, theme, Riverpod providers (provider selection lives here)
   core/       errors, constants, utilities
-  data/       providers (YouTube, sample), YouTube iframe player, SQLite repository
+  data/       providers (YouTube, Jamendo, sample), YouTube iframe + just_audio players, SQLite repository
   domain/     entities and interfaces (MusicProvider, ExternalPlayer, repositories)
   features/   home, search, library, player (incl. YouTube dock), settings, shell
   shared/     reusable widgets

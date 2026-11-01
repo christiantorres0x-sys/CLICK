@@ -37,3 +37,12 @@ class ExternalSourceProvider extends SampleMusicProvider {
   @override
   Future<PlayableSource> resolvePlayableSource(String trackId) async => PlayableSource.youtube(trackId);
 }
+
+/// A provider whose tracks are plain audio streams (like Jamendo): no video.
+class StreamSourceProvider extends SampleMusicProvider {
+  StreamSourceProvider() : super(latency: Duration.zero);
+
+  @override
+  Future<PlayableSource> resolvePlayableSource(String trackId) async =>
+      PlayableSource.stream(Uri.parse('https://audio.example/$trackId.mp3'));
+}

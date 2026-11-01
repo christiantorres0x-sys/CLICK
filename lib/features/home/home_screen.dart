@@ -6,6 +6,7 @@ import '../../app/theme/app_theme.dart';
 import '../../core/errors/app_exception.dart';
 import '../../domain/entities/track.dart';
 import '../../shared/widgets/artwork.dart';
+import '../../shared/widgets/source_switcher.dart';
 import '../../shared/widgets/state_views.dart';
 import '../player/playback_controller.dart';
 
@@ -71,6 +72,7 @@ class HomeScreen extends ConsumerWidget {
           padding: const EdgeInsets.only(bottom: AppSpacing.lg),
           children: [
             const _Header(),
+            const SourceSwitcher(),
             if (provider.isSample) const _SampleBanner(),
             ...content,
           ],

@@ -40,7 +40,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     final s = ref.watch(playbackProvider);
     final controller = ref.read(playbackProvider.notifier);
     final track = s.current;
-    final playbackNotice = ref.watch(musicProviderProvider).playbackNotice;
+    // The notice belongs to the provider that owns the current track (YouTube vs. audio-only).
+    final providers = ref.watch(musicProvidersProvider);
+    final owner = providers.where((p) => p.name == track?.providerName);
+    final playbackNotice = owner.isEmpty ? null : owner.first.playbackNotice;
 
     if (track == null) {
       return Scaffold(

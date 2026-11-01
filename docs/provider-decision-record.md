@@ -14,7 +14,7 @@ The built-in sample catalog remains as the fallback when no API key is supplied.
 | Catalog source | `search.list` and `videos.list` (documented endpoints only, FR-PROV-02) |
 | "Music only" | `videoCategoryId=10` on search and charts, `videoEmbeddable=true`, and CLICK also re-checks `categoryId == 10`, `embeddable`, not live, public, and length ≤ 15 minutes |
 | Playback | **Only** the official YouTube IFrame player (`youtube_player_iframe`). CLICK never downloads, extracts or proxies audio/video streams, and does not use unofficial libraries (FR-PROV-04) |
-| Player visibility | The player is pinned above the app while a YouTube track is loaded. It is at least 200×200 px (full width, 16:9) with nothing drawn over it. YouTube requires an embedded viewport of at least 200×200 px and forbids overlays on it (source: YouTube API Services – Required Minimum Functionality) |
+| Player visibility | The player is a floating 200×200 px square (bottom-right, above the mini-player) while a YouTube track is loaded, with nothing drawn over it. YouTube requires an embedded viewport of at least 200×200 px and forbids overlays on it (source: YouTube API Services – Required Minimum Functionality) |
 | Background playback / lock-screen controls | **Not possible** with the embedded player. FR-BG-01..04 cannot be met for YouTube; this is an accepted limitation of this provider choice |
 | Ads | Controlled by YouTube. CLICK's own UI is ad-free, which is all SRS 2.2 promises |
 | Attribution / disclosure | Settings shows the provider text, YouTube Terms of Service link and Google Privacy Policy link (FR-SET-02, FR-SET-04) |
@@ -55,3 +55,22 @@ requested through Google's compliance audit if ever needed.
 
 Implement `MusicProvider` (`lib/domain/repositories/music_provider.dart`) and select it in
 `lib/app/providers.dart`. Playback engines plug in through `PlayableSource` and `ExternalPlayer`.
+
+
+## Addendum: audio-only provider (Jamendo)
+
+**Why:** the YouTube embedded player must stay visible (YouTube Developer Policies III.I: no background player,
+no separating audio from video). To get a normal-looking player without video, CLICK adds a second source whose
+tracks are plain audio streams. YouTube is unchanged.
+
+**Choice:** Jamendo API v3 (`https://api.jamendo.com/v3.0/tracks/`, `client_id` query parameter, `audio` stream URL
+per track, `search`, `order=popularity_week`, `audioformat=mp32`). Endpoint and fields were read from Jamendo's
+developer docs. Audius was considered but its docs were not reachable during this work, so it was not verified.
+
+**Handling:** the client id is read from `JAMENDO_CLIENT_ID` (dart-define, git-ignored `secrets.json`), never
+hardcoded. Stream URLs are resolved at play time and never stored. Attribution text and the Jamendo track page
+link are shown (Settings, Search).
+
+**VERIFY before release:** Jamendo's API terms (commercial use restrictions, rate limits, attribution wording) were
+not summarized by the page I read; confirm them. Also confirm stream URLs work on your network and that
+`just_audio` plays them on your device. Not compiled or run by me.

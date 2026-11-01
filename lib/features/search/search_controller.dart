@@ -81,6 +81,13 @@ class SearchNotifier extends Notifier<SearchState> {
   }
 
   void retry() => search(state.query);
+
+  /// Drops results and discards any in-flight request (used when the source changes).
+  void clear() {
+    _debounce?.cancel();
+    _token++;
+    state = const SearchState();
+  }
 }
 
 final searchProvider = NotifierProvider<SearchNotifier, SearchState>(SearchNotifier.new);

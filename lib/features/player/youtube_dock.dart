@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
@@ -8,72 +10,113 @@ import '../../data/providers/youtube_music_provider.dart';
 import 'dock_layout.dart';
 import 'playback_controller.dart';
 
-/// Pins the official YouTube player above the whole app while a YouTube track
-/// is loaded, so it stays mounted (and visible, as YouTube requires) across
-/// every screen. Nothing is ever drawn on top of it.
-///
-/// The child keeps a stable position in the tree, so toggling the dock does not
-/// reset navigation state.
-class YoutubeDockHost extends ConsumerWidget {
+/// Shows the official YouTube player as a small floating 200x200 square while
+/// a YouTube track is loaded. Drag the grip bar above it to move it anywhere on
+/// screen; it is kept fully on screen, stays mounted (and visible, as YouTube
+/// requires) across every screen, and nothing is ever drawn on top of it.
+class YoutubeDockHost extends ConsumerStatefulWidget {
   const YoutubeDockHost({super.key, required this.child});
 
   final Widget child;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<YoutubeDockHost> createState() => _YoutubeDockHostState();
+}
+
+class _YoutubeDockHostState extends ConsumerState<YoutubeDockHost> {
+  /// Top-left of the dock; null until the user moves it (then the default corner is used).
+  Offset? _position;
+
+  @override
+  Widget build(BuildContext context) {
     final active = ref.watch(
       playbackProvider.select((s) => s.current?.providerName == YouTubeMusicProvider.providerName),
     );
 
-    return Column(
+    return Stack(
       children: [
-        if (active) _Dock(player: ref.watch(youtubePlayerProvider)) else const SizedBox.shrink(),
-        Expanded(
-          child: MediaQuery.removePadding(
-            context: context,
-            removeTop: active, // the dock already sits below the status bar
-            child: child,
+        Positioned.fill(child: widget.child),
+        if (active)
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final media = MediaQuery.of(context);
+              final size = youtubeDockSize(constraints.maxWidth, constraints.maxHeight);
+              final total = Size(size.width, size.height + youtubeDockHandleHeight);
+              final bounds = Rect.fromLTRB(
+                0,
+                media.padding.top,
+                max(0, constraints.maxWidth - total.width),
+                max(media.padding.top, constraints.maxHeight - total.height - media.padding.bottom),
+              );
+              final fallback = Offset(
+                constraints.maxWidth - total.width - youtubeDockMargin,
+                constraints.maxHeight - total.height - media.padding.bottom - youtubeDockBottomReserve,
+              );
+              final pos = _clamp(_position ?? fallback, bounds);
+              return Stack(
+                children: [
+                  Positioned(
+                    left: pos.dx,
+                    top: pos.dy,
+                    child: _Dock(
+                      player: ref.watch(youtubePlayerProvider),
+                      size: size,
+                      onDrag: (delta) => setState(() => _position = _clamp(pos + delta, bounds)),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
-        ),
       ],
     );
   }
+
+  static Offset _clamp(Offset o, Rect b) => Offset(o.dx.clamp(b.left, b.right), o.dy.clamp(b.top, b.bottom));
 }
 
 class _Dock extends StatelessWidget {
-  const _Dock({required this.player});
+  const _Dock({required this.player, required this.size, required this.onDrag});
 
   final YoutubeIframePlayer player;
+  final ({double width, double height}) size;
+  final ValueChanged<Offset> onDrag;
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
+    return Material(
       color: Colors.black,
-      child: SafeArea(
-        bottom: false,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            // Capped so the player never overflows a landscape screen, but
-            // never below YouTube's 200x200 px minimum viewport.
-            final size = youtubeDockSize(constraints.maxWidth, MediaQuery.sizeOf(context).height);
-            return Center(
-              child: SizedBox(
-                width: size.width,
-                height: size.height,
-                child: ListenableBuilder(
-                  listenable: player,
-                  builder: (context, _) {
-                    final controller = player.controller;
-                    if (controller == null) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    return YoutubePlayer(controller: controller, aspectRatio: size.width / size.height);
-                  },
-                ),
-              ),
-            );
-          },
-        ),
+      elevation: 8,
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // The grip is its own strip above the video, so dragging never touches or covers the player.
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onPanUpdate: (d) => onDrag(d.delta),
+            child: SizedBox(
+              width: size.width,
+              height: youtubeDockHandleHeight,
+              child: const Center(child: Icon(Icons.drag_handle_rounded, size: 22, color: Colors.white70)),
+            ),
+          ),
+          SizedBox(
+            width: size.width,
+            height: size.height,
+            child: ListenableBuilder(
+              listenable: player,
+              builder: (context, _) {
+                final controller = player.controller;
+                if (controller == null) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                return YoutubePlayer(controller: controller, aspectRatio: 1);
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

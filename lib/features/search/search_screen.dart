@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../app/theme/app_theme.dart';
+import '../../shared/widgets/source_switcher.dart';
 import '../../shared/widgets/state_views.dart';
 import '../../shared/widgets/track_tile.dart';
 import '../player/playback_controller.dart';
@@ -29,6 +30,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final state = ref.watch(searchProvider);
     final notifier = ref.read(searchProvider.notifier);
     final provider = ref.watch(musicProviderProvider);
+    // A new source starts with a clean search box.
+    ref.listen(musicProviderProvider, (previous, next) {
+      if (previous?.name != next.name) {
+        _controller.clear();
+        setState(() {});
+      }
+    });
 
     final Widget body = switch (state.status) {
       SearchStatus.idle => EmptyView(
@@ -117,6 +125,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               ),
             ),
           ),
+          const SourceSwitcher(),
           Expanded(child: body),
         ],
       ),

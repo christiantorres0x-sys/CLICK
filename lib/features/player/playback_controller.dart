@@ -160,7 +160,7 @@ class PlaybackController extends Notifier<PlaybackState> {
 
     final PlayableSource source;
     try {
-      source = await ref.read(musicProviderProvider).resolvePlayableSource(track.providerId);
+      source = await _providerFor(track).resolvePlayableSource(track.providerId);
     } on AppException catch (e) {
       if (_disposed || token != _token) return;
       _fail(track, e.userMessage, unavailable: e is ProviderUnavailableException);
@@ -173,18 +173,20 @@ class PlaybackController extends Notifier<PlaybackState> {
     if (_disposed || token != _token) return;
 
     final videoId = source.youtubeVideoId;
-    if (videoId == null) {
+    final streamUri = source.uri;
+    if (videoId == null && streamUri == null) {
       // Simulated playback (sample catalog).
       _detachExternal();
       state = state.copyWith(isLoading: false, isPlaying: true);
       _startTimer();
     } else {
       try {
-        final player = _attachExternal();
-        await player.load(videoId);
+        // YouTube plays in its official player; plain audio streams play in CLICK's own audio player.
+        final player = _attachExternal(ref.read(videoId != null ? externalPlayerProvider : audioPlayerProvider));
+        await player.load(videoId ?? streamUri!.toString());
       } catch (_) {
         if (_disposed || token != _token) return;
-        _fail(track, 'Could not start the YouTube player. Press play to try again.');
+        _fail(track, 'Could not start playback. Press play to try again.');
         return;
       }
       if (_disposed || token != _token) return;
@@ -210,9 +212,20 @@ class PlaybackController extends Notifier<PlaybackState> {
 
   // --- external player -----------------------------------------------------
 
-  ExternalPlayer _attachExternal() {
-    final player = ref.read(externalPlayerProvider);
+  /// A track plays with the provider that owns it, even if the user has since
+  /// switched the Home/Search source.
+  MusicProvider _providerFor(Track track) {
+    final selected = ref.read(musicProviderProvider);
+    if (selected.name == track.providerName) return selected;
+    for (final p in ref.read(musicProvidersProvider)) {
+      if (p.name == track.providerName) return p;
+    }
+    return selected;
+  }
+
+  ExternalPlayer _attachExternal(ExternalPlayer player) {
     if (!identical(player, _external)) {
+      _safe(_external?.pause()); // switching engines: silence the previous one
       _externalSub?.cancel();
       _external = player;
       _externalSub = player.events.listen(_onExternalEvent);
